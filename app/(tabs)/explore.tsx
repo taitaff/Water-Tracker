@@ -1,109 +1,192 @@
-import { StyleSheet, Image, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Calendar } from 'react-native-calendars';
+import { format } from 'date-fns'; // Для форматирования даты
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+export default function ExploreScreen() {
+  const [waterConsumed, setWaterConsumed] = useState(0);
+  const [input, setInput] = useState('');
+  const [message, setMessage] = useState('');
+  const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
+  const [weeklyWater, setWeeklyWater] = useState<number>(0); // Для хранения суммы за неделю
+  const dailyGoal = 2000; // Норма в миллилитрах (2 литра)
 
-export default function TabTwoScreen() {
+  // Функция для получения текущей даты
+  function getCurrentDate() {
+    const date = new Date();
+    return date.toISOString().split('T')[0]; // Возвращаем дату в формате 'YYYY-MM-DD'
+  }
+
+  // Функция для добавления воды
+  const addWater = async () => {
+    const inputWater = parseInt(input);
+    if (isNaN(inputWater) || inputWater <= 0) {
+      setMessage('Пожалуйста, введите положительное число!');
+      return;
+    }
+
+    // Сохраняем в AsyncStorage с учетом выбранной даты
+    const currentWater = await AsyncStorage.getItem(selectedDate);
+    const newTotal = currentWater ? parseInt(currentWater) + inputWater : inputWater;
+
+    await AsyncStorage.setItem(selectedDate, newTotal.toString());
+    setWaterConsumed(newTotal);
+
+    // Определяем сообщение
+    if (newTotal >= dailyGoal) {
+      setMessage('Поздравляем, вы выпили достаточно воды на сегодня!');
+    } else if (newTotal > dailyGoal * 0.8) {
+      setMessage('Вы почти достигли своей цели! Почти там!');
+    } else if (newTotal > dailyGoal * 1.2) {
+      setMessage('Осторожно! Вы выпили слишком много воды!');
+    } else {
+      setMessage('');
+    }
+    setInput('');
+    updateWeeklyWater(); // Обновляем сумму воды за неделю после добавления
+  };
+
+  // Функция для выбора другой даты
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    getWaterConsumedForDate(date);
+  };
+
+  // Функция для получения количества воды для выбранной даты
+  const getWaterConsumedForDate = async (date: string) => {
+    const water = await AsyncStorage.getItem(date);
+    setWaterConsumed(water ? parseInt(water) : 0);
+  };
+
+  // Функция для подсчета воды за последнюю неделю
+  const updateWeeklyWater = async () => {
+    const weekDates = getLastWeekDates(selectedDate);
+    let totalWater = 0;
+    
+    // Для каждой даты недели получаем сохраненную воду и суммируем
+    for (let date of weekDates) {
+      const water = await AsyncStorage.getItem(date);
+      totalWater += water ? parseInt(water) : 0;
+    }
+
+    setWeeklyWater(totalWater); // Обновляем количество воды за неделю
+  };
+
+  // Функция для получения дат последней недели
+  const getLastWeekDates = (date: string) => {
+    const dates: string[] = [];
+    const currentDate = new Date(date);
+
+    for (let i = 6; i >= 0; i--) {
+      currentDate.setDate(currentDate.getDate() - i);
+      dates.push(format(currentDate, 'yyyy-MM-dd'));
+    }
+
+    return dates;
+  };
+
+  useEffect(() => {
+    getWaterConsumedForDate(selectedDate);
+    updateWeeklyWater(); // При изменении даты обновляем отчет за неделю
+  }, [selectedDate]);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <Text style={styles.header}>Добавьте количество выпитой воды</Text>
+
+      {/* Календарь */}
+      <Calendar
+        current={selectedDate}
+        onDayPress={(day: { dateString: string; }) => handleDateChange(day.dateString)}
+        markedDates={{
+          [selectedDate]: {
+            selected: true,
+            selectedColor: '#00BFFF',
+            selectedTextColor: 'white',
+          },
+        }}
+        theme={{
+          selectedDayBackgroundColor: '#00BFFF',
+          todayTextColor: '#00BFFF',
+        }}
+      />
+
+      {/* Отступ между календарем и полем ввода */}
+      <View style={styles.spacer} />
+
+      {/* Поле ввода для воды */}
+      <TextInput
+        style={styles.input}
+        placeholder="Введите количество воды (мл)"
+        keyboardType="numeric"
+        value={input}
+        onChangeText={setInput}
+      />
+
+      {/* Отступ между полем ввода и кнопкой */}
+      <View style={styles.spacer} />
+
+      {/* Кнопка для добавления воды */}
+      <Button title="Добавить воду" onPress={addWater} />
+
+      {/* Сообщение о статусе */}
+      {message ? <Text style={styles.message}>{message}</Text> : null}
+
+      {/* Отображаем текущий прогресс */}
+      <Text style={styles.progress}>
+        Выпито {waterConsumed} мл из {dailyGoal} мл.
+      </Text>
+
+      {/* Строка с количеством воды, выпитой за неделю */}
+      <Text style={styles.weeklyReport}>
+        Выпито за неделю: {weeklyWater} мл
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#E0F7FA', // Голубой фон
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    fontFamily: 'SpaceMono', // Шрифт (не забудьте добавить его в проект)
+  },
+  input: {
+    width: '80%',
+    height: 40,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 5,
+    paddingLeft: 10,
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  spacer: {
+    height: 20, // Отступ между элементами
+  },
+  message: {
+    marginTop: 20,
+    fontSize: 18,
+    color: 'red',
+    fontWeight: 'bold',
+  },
+  progress: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#333',
+  },
+  weeklyReport: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#00796B', // Цвет для отчета за неделю
   },
 });
